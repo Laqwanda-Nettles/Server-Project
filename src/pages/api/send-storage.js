@@ -9,7 +9,15 @@ const resend = new Resend(API_KEY);
 
 export default async function handler(req, res) {
   try {
-    const { message, email } = req.query;
+    // Ensures handler only accepts POST requests
+    if (req.method !== "POST") {
+      return res
+        .status(405)
+        .json({ success: false, message: "Method Not Allowed" });
+    }
+
+    // Get the message and email from the request body
+    const { message, email, subject } = req.body;
 
     if (!message || !email) {
       return res.status(400).json({ error: "Message and email are required" });
@@ -19,27 +27,23 @@ export default async function handler(req, res) {
     await resend.emails.send({
       from: "Acme <onboarding@resend.dev>",
       to: email,
-      subject: "New Message Recieved",
-      text: `You recieved a new message: ${message}`,
+      subject: subject || "No Subject",
+      text: message,
     });
 
     // Store the latest message in Redis
-    await redis.set("latest_message", message);
+    await redis.rpush("messages", message);
 
     // Send a success response
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Email sent and latest message stored!",
-      });
+    res.status(200).json({
+      success: true,
+      message: "Email sent and message stored!",
+    });
   } catch (error) {
     console.error("Error in send-storage endpoint: ", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Error sending email or storing message",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Error sending email or storing message",
+    });
   }
 }
