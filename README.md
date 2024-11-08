@@ -301,20 +301,16 @@ export default async function handler(req, res) {
     });
 
     await redis.set("latest_message", message);
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Email sent and latest message stored!",
-      });
+    res.status(200).json({
+      success: true,
+      message: "Email sent and latest message stored!",
+    });
   } catch (error) {
     console.error("Error in send-storage endpoint: ", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Error sending email or storing message",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Error sending email or storing message",
+    });
   }
 }
 ```
@@ -325,3 +321,78 @@ export default async function handler(req, res) {
 ## Project Architecture Diagram
 
 ![alt text](image.png)
+
+## Part 2: API and Redis Integration
+
+### Project Overview
+
+This project includes two main pages:
+
+1. **Contact Me:** A form for users to submit a message and email, which triggers an email to the specified address and stores the message in Redis.
+2. **All Messages:** Displays all stored messages, with a refresh button to update the list of messages from Redis.
+   Two main API routes support these pages:
+
+`/api/send-storage`: Sends a message email and stores the message in Redis.
+`/api/get-messages`: Retrieves all stored messages from Redis.
+
+### API Routes
+
+#### `/api/send-storage`
+
+This route handles incoming `POST` requests from the Contact Me form.
+
+**Key Functions**
+
+- Resend: Sends an email to the specified recipient.
+- Redis (`rpush`): Adds the message to the Redis list, `messages`, to keep a history of all messages.
+
+**Key Concepts**
+
+- `req.body`: The request body holds the user’s `email`, `message`, and optionally a `subject`. We extract these values using `req.body` and validate them before proceeding.
+
+#### `/api/get-messages`
+
+This route handles `GET` requests from the All Messages page and retrieves the list of stored messages from Redis.
+
+**Key Functions**
+
+- Redis (`lrange`): Retrieves all messages stored in the Redis list `messages`.
+  **Key Concept**
+- Redis Commands:
+
+  - `lrange`: Gets a range of values from a Redis list. By specifying `0` and `-1` as the range, we retrieve all messages in the list.
+
+  ### Pages
+
+  #### Contact Me Page
+
+  This page contains a form that lets users enter their email, subject, and message. Submitting the form sends the data to `/api/send-storage`, which emails the user’s message and stores it in Redis.
+
+  #### All Messages Page
+
+  This page retrieves and displays all stored messages using the `/api/get-messages` API route. A refresh button allows the user to re-fetch messages from Redis.
+
+  ## Reflection
+
+  ### Summary of Key Concepts and Techniques
+
+  While building this project, I learned how to use API endpoints with `fetch`, and state management with React hooks like `useState` and `useEffect`. By using `fetch`, I was able to interact with the API to store messages on the `Contact Me` page and retrieve them on the `All Messages` page. Here’s a breakdown of how each of these worked:
+
+  `fetch`: Used to send and retrieve data from the server. For example, in `Contact Me`, fetch was used to make a `POST` request to `/api/send-storage`, sending user-provided data (email, message, subject) in the request body. Similarly, fetch was used on `All Messages` to retrieve stored messages via a `GET` request to `/api/get-messages`.
+
+  `useState`: Managed component state, such as storing the message and email fields for form submission and handling loading states. It also updated the list of messages displayed on `All Messages`.
+
+  `useEffect`: Handled side effects by fetching messages on page load, so that users can see all messages immediately. `useEffect` was also used with a `handleRefresh` function to re-fetch messages when users click the refresh button.
+
+### Challenges and Solutions
+
+1. **Request Body Management:** Ensuring that required fields (`email`, `message`, `subject`) were present in each form submission was critical for successful requests.
+
+- **Solution:** Validation was added both on the frontend and backend, ensuring complete data was sent and preventing errors during processing.
+
+2. **Using Redis Commands:**
+
+- Challenge: Choosing the right Redis command was important to ensure messages were stored and retrieved in the correct order.
+- **Solution** Using `rpush` allowed messages to be added to the end of a list, keeping them in chronological order. `lrange` was then used to retrieve all messages when needed.
+  ### Lessons Learned
+  This project reinforced the importance of selecting the right data structure and commands based on specific needs. By using `rpush`, I maintained the chronological order of messages, making it easy to retrieve a complete history using `lrange`. This experience taught me how to manage both data storage and retrieval more effectively, especially when dealing with asynchronous fetch requests and React state updates.
