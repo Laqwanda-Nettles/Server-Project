@@ -1,5 +1,12 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
+import { Redis } from "@upstash/redis";
 
-export default function handler(req, res) {
-  res.status(200).json({ name: "John Doe" });
+// Initialize Redis
+const redis = Redis.fromEnv();
+
+export default async function handler(req, res) {
+  await redis.set("item", "peaches");
+
+  // Fetch data from Redis
+  const result = await redis.get("item");
+  res.status(200).json({ result });
 }
