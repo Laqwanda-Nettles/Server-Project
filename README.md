@@ -1,5 +1,9 @@
 # Server Project
 
+- [Email Integration](#part-1-email-integration)
+- [API and Redis Integration](#part-2-api-and-redis-integration)
+- [Magic Link Auth](#magic-link-authentication-system)
+
 ## Overview:
 
 This Next.js project demonstrates how to build and manage a server with multiple functionalities using Upstash Redis for data persistence and Resend for email integration. The project covers:
@@ -372,17 +376,17 @@ This route handles `GET` requests from the All Messages page and retrieves the l
 
   This page retrieves and displays all stored messages using the `/api/get-messages` API route. A refresh button allows the user to re-fetch messages from Redis.
 
-  ## Reflection
+## Reflection
 
-  ### Summary of Key Concepts and Techniques
+### Summary of Key Concepts and Techniques
 
-  While building this project, I learned how to use API endpoints with `fetch`, and state management with React hooks like `useState` and `useEffect`. By using `fetch`, I was able to interact with the API to store messages on the `Contact Me` page and retrieve them on the `All Messages` page. Here’s a breakdown of how each of these worked:
+While building this project, I learned how to use API endpoints with `fetch`, and state management with React hooks like `useState` and `useEffect`. By using `fetch`, I was able to interact with the API to store messages on the `Contact Me` page and retrieve them on the `All Messages` page. Here’s a breakdown of how each of these worked:
 
-  `fetch`: Used to send and retrieve data from the server. For example, in `Contact Me`, fetch was used to make a `POST` request to `/api/send-storage`, sending user-provided data (email, message, subject) in the request body. Similarly, fetch was used on `All Messages` to retrieve stored messages via a `GET` request to `/api/get-messages`.
+- `fetch`: Used to send and retrieve data from the server. For example, in `Contact Me`, fetch was used to make a `POST` request to `/api/send-storage`, sending user-provided data (email, message, subject) in the request body. Similarly, fetch was used on `All Messages` to retrieve stored messages via a `GET` request to `/api/get-messages`.
 
-  `useState`: Managed component state, such as storing the message and email fields for form submission and handling loading states. It also updated the list of messages displayed on `All Messages`.
+- `useState`: Managed component state, such as storing the message and email fields for form submission and handling loading states. It also updated the list of messages displayed on `All Messages`.
 
-  `useEffect`: Handled side effects by fetching messages on page load, so that users can see all messages immediately. `useEffect` was also used with a `handleRefresh` function to re-fetch messages when users click the refresh button.
+- `useEffect`: Handled side effects by fetching messages on page load, so that users can see all messages immediately. `useEffect` was also used with a `handleRefresh` function to re-fetch messages when users click the refresh button.
 
 ### Challenges and Solutions
 
@@ -394,5 +398,162 @@ This route handles `GET` requests from the All Messages page and retrieves the l
 
 - Challenge: Choosing the right Redis command was important to ensure messages were stored and retrieved in the correct order.
 - **Solution** Using `rpush` allowed messages to be added to the end of a list, keeping them in chronological order. `lrange` was then used to retrieve all messages when needed.
-  ### Lessons Learned
-  This project reinforced the importance of selecting the right data structure and commands based on specific needs. By using `rpush`, I maintained the chronological order of messages, making it easy to retrieve a complete history using `lrange`. This experience taught me how to manage both data storage and retrieval more effectively, especially when dealing with asynchronous fetch requests and React state updates.
+
+### Lessons Learned
+
+This project reinforced the importance of selecting the right data structure and commands based on specific needs. By using `rpush`, I maintained the chronological order of messages, making it easy to retrieve a complete history using `lrange`. This experience taught me how to manage both data storage and retrieval more effectively, especially when dealing with asynchronous fetch requests and React state updates.
+
+---
+
+# Magic Link Authentication System
+
+## Overview
+
+This project implements a **magic link authentication** system, allowing users to log in securely via a unique link sent to their email. The system generates a one-time-use token, stores it in Redis (Upstash), and emails the link to the user. Upon clicking the link, the user is authenticated, and a session is established.
+
+---
+
+## How the Magic Link is Generated
+
+### Steps to Generate and Use a Magic Link:
+
+1. **User Requests a Login Link**: When a user submits their email, the system generates a unique token.
+2. **Token Storage**: This token, associated with the user's email, is stored in Upstash Redis with a specific key (`magic_token:<uniqueToken>`), ensuring only one active token per login request.
+3. **Email Delivery**: Using the Resend API, an email with the magic link (e.g., `http://localhost:3000/login?token=<uniqueToken>`) is sent to the user.
+4. **Token Validation**: When the user clicks the link, the token is sent to the server to validate the request.
+5. **Session Creation**: If the token is valid, a session token is generated, stored, and returned to the client, allowing access to authenticated areas.
+
+### Purpose of the Token
+
+The token acts as a **single-use identifier** to verify the user's identity. It ensures:
+
+- **Security**: The token expires after use or after a set time, reducing unauthorized access.
+- **Session Management**: The token allows the creation of a temporary session, maintained by Redis for fast lookup.
+
+---
+
+## Authentication Flow
+
+Here’s a visual diagram of the magic link authentication flow:
+
+```sql
++----------------------+                  +----------------------+
+|    User Requests     |  POST /api/      |    Generate Token   |
+|     Magic Link       |  send-magic-link |  and Store in Redis |
++----------+-----------+                  +-----------+----------+
+           |                                         |
+           |                                         |
+           v                                         v
++----------------------+                  +----------------------+
+|     Resend Email     |   Magic Link     |    User Clicks Link  |
+|  with Unique Token   | ---------------->|  GET /api/validate-  |
++----------+-----------+    URL           |        token         |
+           |                              +-----------+----------+
+           |                                          |
+           v                                          v
++----------------------+                  +----------------------+
+|   Validate Token     |      If valid    |     Create Session   |
+|    in Redis          | ---------------->|   and Return Token   |
++----------+-----------+                  +----------------------+
+           |
+           v
++----------------------+
+|  Redirect to Secure  |
+|    Application       |
++----------------------+
+```
+
+---
+
+## User Data Storage and Retrieval
+
+User-specific data, such as favorite items or preferences, is stored in Redis with structured keys. This makes retrieval and management efficient and scalable.
+
+### Key Patterns Used for Redis Storage
+
+The following Redis keys are used to organize data:
+
+1. **Magic Link Tokens**:
+
+   - **Key**: `magic_token:<uniqueToken>`
+   - **Purpose**: Store the unique token for each login request.
+   - **Example**: `magic_token:abc123xyz -> user@example.com`
+
+2. **Session Tokens**:
+
+   - **Key**: `session:<userEmail>`
+   - **Purpose**: Store the session token for authenticated access.
+   - **Example**: `session:user@example.com -> 789xyz123`
+
+3. **User Favorites**:
+   - **Key**: `favorites:<userEmail>`
+   - **Purpose**: Store a list of user-selected favorites.
+   - **Example**: `favorites:user@example.com -> ["Favorite Item 1", "Favorite Item 2"]`
+
+### Code Examples for Adding and Retrieving Data
+
+#### Adding a Favorite
+
+To add a favorite item to a user's list, the server-side function pushes the new item to the end of the Redis list:
+
+```js
+await redis.rpush(`favorites:${email}`, favorite);
+```
+
+#### Retrieving Favorites
+
+To retrieve all favorite items for a user, the function uses `lrange` to fetch the entire list:
+
+```javascript
+const favorites = await redis.lrange(`favorites:${email}`, 0, -1);
+```
+
+### Example API Usage
+
+- **Adding a Favorite**:
+
+  ```bash
+  POST /api/add-favorite
+  Content-Type: application/json
+
+  {
+    "email": "user@example.com",
+    "favorite": "Favorite Item",
+    "token": "<sessionToken>"
+  }
+  ```
+
+- **Retrieving Favorites**:
+  ```bash
+  GET /api/get-favorite?email=user@example.com
+  ```
+
+This setup allows user data to be securely stored and accessed based on Redis keys, enhancing both the security and performance of the system.
+
+---
+
+## Project Files
+
+Below is a summary of the main files in this project:
+
+1. **`send-magic-link.js`**:
+
+   - Creates and sends the magic link to the user.
+   - Generates a unique token, stores it in Redis, and emails the link.
+
+2. **`validate-token.js`**:
+
+   - Validates the token from the magic link.
+   - If valid, creates a session token and returns it to the client.
+
+3. **`add-favorite.js`**:
+
+   - Allows authenticated users to save their favorite items.
+   - Checks the session token before adding a favorite to the list.
+
+4. **`get-favorite.js`**:
+   - Retrieves the list of favorites for a given user.
+
+## Conclusion
+
+This magic link authentication setup leverages Redis for token storage and validation, providing secure and efficient session management. The documentation above should guide you through the setup, storage patterns, and usage examples to implement and extend this authentication system.
